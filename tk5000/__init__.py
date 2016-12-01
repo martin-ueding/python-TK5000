@@ -9,6 +9,13 @@ import re
 
 import serial
 
+try:
+    import termcolor
+except ImportError:
+    termcolor = {
+        'cprint': lambda x, *args, **kwargs: print(x)
+    }
+
 
 error_code_messages = {
     0: 'Unbekannter Fehler',
@@ -27,7 +34,17 @@ class Tracker(object):
 
     @property
     def version(self):
-        return self._execute(b'VER')
+        self._execute(b'VER')
+        return self._parse_oneline_result()
+
+    def get_positions(self):
+        self._execute(b'DLREC')
+        return self._parse_oneline_result()
+
+    @property
+    def location(self):
+        self._execute(b'GETLOCATION')
+        return self._parse_oneline_result()
 
     def _execute(self, command, params=[]):
         if len(params) > 0:
@@ -45,26 +62,45 @@ class Tracker(object):
         ]
 
         to_send = b''.join(parts)
-        print(to_send)
+        termcolor.cprint('← ' + to_send.decode().strip(), 'blue')
         self.dev.write(to_send)
 
+    def _parse_oneline_result(self):
         result = self.dev.readline()
-        print(result)
+
+        parsed = False
+        success = False
+
+        color = 'yellow'
 
         m = self.ok_pattern.search(result)
         if m:
-            return m.groups()
+            parsed = True
+            success = True
+            return_val = m.groups()
+            color = 'green'
 
         m = self.err_pattern.search(result)
         if m:
+            parsed = True
             error_code = int(m.group(1))
+            color = 'red'
+
+        termcolor.cprint('→ ' + result.decode().strip(), color)
+
+        if not parsed:
+            raise RuntimeError('Answer from tracker could not be parsed. Was ' + str(result))
+
+        if not success:
             raise RuntimeError('Error from tracker: ' + error_code_messages[error_code])
 
-        raise RuntimeError('Answer from tracker could not be parsed.')
+        return return_val
 
 
 def main():
     options = _parse_args()
+
+    print()
 
     serial_devices = glob.glob('/dev/serial/by-id/*')
     if len(serial_devices) == 0:
@@ -76,9 +112,10 @@ def main():
 
 
     with serial.Serial(serial_device) as dev:
-        tracker = Tracker(dev, b'000')
-        version = tracker.version
-        print(version)
+        tracker = Tracker(dev, b'0000')
+
+        print(tracker.version)
+        print(tracker.location)
 
 
 def _parse_args():
