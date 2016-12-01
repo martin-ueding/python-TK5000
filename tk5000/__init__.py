@@ -26,7 +26,7 @@ error_code_messages = {
 
 
 class Tracker(object):
-    ok_pattern = re.compile(br'\$OK:\w+=([^,\n\r]+)(?:,([^,\n\r]+))+')
+    ok_pattern = re.compile(br'\$OK:\w+=([^,\n\r]+)(?:,([^,\n\r]*))*')
     err_pattern = re.compile(br'\$ERR:(?:\w+=)?(\d+)')
 
     def __init__(self, dev, password):
@@ -40,15 +40,22 @@ class Tracker(object):
         return self._parse_oneline_result()
 
     def get_positions(self):
-        self._execute(b'DLREC', [b'0', b'0'])
-        return self._parse_oneline_result()
+        self._execute(b'DLREC', b'0', b'0')
+        return self._get_multiline_result()
 
     @property
     def location(self):
         self._execute(b'GETLOCATION')
         return self._get_oneline_result()
 
-    def _execute(self, command, params=[]):
+    def get_sos(self):
+        self._execute(b'EMSMS', b'?')
+        result = self._parse_oneline_result()
+        return result[0]
+
+    sos = property(get_sos)
+
+    def _execute(self, command, *params):
         if len(params) > 0:
             param_str = b',' + b','.join(map(bytes, params))
         else:
@@ -69,6 +76,18 @@ class Tracker(object):
 
     def _get_oneline_result(self):
         return self.dev.readline()
+
+    def _get_multiline_result(self, last=b'$MSG:'):
+        status = self._parse_oneline_result()
+
+        lines = []
+        while True:
+            line = self.dev.readline()
+            lines.append(line)
+            if line.startswith(last):
+                break
+
+        return status, lines[:-1], lines[-1]
 
     def _parse_oneline_result(self):
         result = self._get_oneline_result()
@@ -102,6 +121,22 @@ class Tracker(object):
         return return_val
 
 
+def interpret_raw_positions(lines):
+    result = []
+    for line in lines:
+        parts = line.strip().split(b',')
+        result.append((parts[1], parts[3], parts[2]))
+
+    return result
+
+
+def store_positions_as_tsv(filename, positions):
+    with open(filename, 'wb') as f:
+        f.write(b'date,latitude,longitude\n')
+        for position in positions:
+            f.write(b','.join(position) + b'\n')
+
+
 def main():
     options = _parse_args()
 
@@ -121,10 +156,14 @@ def main():
 
         print(tracker.version)
         print()
+        print(tracker.sos)
+        print()
         print(tracker.location)
         print()
-        print(tracker.get_positions())
-        print()
+
+        status, positions_raw, message = tracker.get_positions()
+        positions = interpret_raw_positions(positions_raw)
+        store_positions_as_tsv('positions.tsv', positions)
 
 
 def _parse_args():
