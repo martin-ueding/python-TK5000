@@ -48,14 +48,18 @@ class Tracker(object):
         self._execute(b'GETLOCATION')
         return self._get_oneline_result()
 
-    def get_sos(self):
+    def _get_sos(self):
         self._execute(b'EMSMS', b'?')
         result = self._parse_oneline_result()
         return result[0]
 
-    sos = property(get_sos)
+    sos = property(_get_sos)
 
     def _execute(self, command, *params):
+        '''
+        Executes a command on the tracker but does not retrieve any of the
+        results.
+        '''
         if len(params) > 0:
             param_str = b',' + b','.join(map(bytes, params))
         else:
@@ -75,9 +79,23 @@ class Tracker(object):
         self.dev.write(to_send)
 
     def _get_oneline_result(self):
+        '''
+        Retrieves a single line of result.
+
+        If this is called when there is nothing to read, the program will
+        block.
+        '''
         return self.dev.readline()
 
     def _get_multiline_result(self, last=b'$MSG:'):
+        '''
+        Reads multiple lines until a line that signals the end is read.
+
+        The end is denoted by a ``$MSG:`` but can be chosen differently if needed.
+
+        :returns tuple(bytes, list(bytes), bytes):
+            Line with status, list of lines with data, last line.
+        '''
         status = self._parse_oneline_result()
 
         lines = []
@@ -90,6 +108,14 @@ class Tracker(object):
         return status, lines[:-1], lines[-1]
 
     def _parse_oneline_result(self):
+        '''
+        Retrieves a single line result and attempts to parse it.
+
+        The read line is color printed.
+
+        :returns tuple(bytes): List of values that were returned.
+        :raises: RuntimeError if the line could not be parsed.
+        '''
         result = self._get_oneline_result()
 
         parsed = False
@@ -122,6 +148,12 @@ class Tracker(object):
 
 
 def interpret_raw_positions(lines):
+    '''
+    Converts a list of raw lines into a list of position tuples.
+
+    Each tuple within the result list consists of date, latitude, and
+    longitude.
+    '''
     result = []
     for line in lines:
         parts = line.strip().split(b',')
@@ -130,7 +162,10 @@ def interpret_raw_positions(lines):
     return result
 
 
-def store_positions_as_tsv(filename, positions):
+def store_positions_as_csv(filename, positions):
+    '''
+    Stores a list with tuples into a comma delimited text file.
+    '''
     with open(filename, 'wb') as f:
         f.write(b'date,latitude,longitude\n')
         for position in positions:
@@ -163,7 +198,7 @@ def main():
 
         status, positions_raw, message = tracker.get_positions()
         positions = interpret_raw_positions(positions_raw)
-        store_positions_as_tsv('positions.tsv', positions)
+        store_positions_as_csv('positions.csv', positions)
 
 
 def _parse_args():
