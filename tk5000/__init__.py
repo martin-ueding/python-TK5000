@@ -9,12 +9,14 @@ import re
 
 import serial
 
+# Import color output package, fall back to normal output of that is not
+# installed.
 try:
     import termcolor
 except ImportError:
-    termcolor = {
-        'cprint': lambda x, *args, **kwargs: print(x)
-    }
+    print('Install the `termcolor` Python module to get color output')
+    termcolor = lambda x: None
+    termcolor.cprint = lambda x, *args, **kwargs: print(x)
 
 
 error_code_messages = {
@@ -38,13 +40,13 @@ class Tracker(object):
         return self._parse_oneline_result()
 
     def get_positions(self):
-        self._execute(b'DLREC')
+        self._execute(b'DLREC', [b'0', b'0'])
         return self._parse_oneline_result()
 
     @property
     def location(self):
         self._execute(b'GETLOCATION')
-        return self._parse_oneline_result()
+        return self._get_oneline_result()
 
     def _execute(self, command, params=[]):
         if len(params) > 0:
@@ -65,8 +67,11 @@ class Tracker(object):
         termcolor.cprint('← ' + to_send.decode().strip(), 'blue')
         self.dev.write(to_send)
 
+    def _get_oneline_result(self):
+        return self.dev.readline()
+
     def _parse_oneline_result(self):
-        result = self.dev.readline()
+        result = self._get_oneline_result()
 
         parsed = False
         success = False
@@ -115,7 +120,11 @@ def main():
         tracker = Tracker(dev, b'0000')
 
         print(tracker.version)
+        print()
         print(tracker.location)
+        print()
+        print(tracker.get_positions())
+        print()
 
 
 def _parse_args():
