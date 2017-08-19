@@ -1,10 +1,7 @@
-Python interface for TK5000 gps tracker
+Python Interface for TK5000 GPS Tracker
 #######################################
 
-`Device Manual (german)`_
-
-.. _`Device Manual`: http://www.gpsvision.de/downloads/15_02_2012_ANLEITUNG_TK5000_url.pdf
-
+`Device Manual (german) <http://www.gpsvision.de/downloads/15_02_2012_ANLEITUNG_TK5000_url.pdf>`_
 
 First steps to connect device:
 
@@ -22,7 +19,9 @@ First steps to connect device:
 
 Known commands and return values
 ================================
+
 ::
+
         $WP+VER=0000
         $OK:VER=TK5000T 5.000rev15,V10
 
